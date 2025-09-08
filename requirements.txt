@@ -1,0 +1,10 @@
+# requirements.txt
+streamlit
+openai
+chromadb
+requests
+beautifulsoup4
+pytest
+python-dotenv
+tqdm
+urllib3

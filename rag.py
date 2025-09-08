@@ -1,42 +1,44 @@
-# rag.py
+# rag.py (Render-friendly)
 from dotenv import load_dotenv
 load_dotenv()
 import os
 from typing import List, Dict
 import chromadb
+from chromadb.utils import embedding_functions
 
+# Load environment variables
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-CHROMA_DIR = os.getenv("CHROMA_DB_DIR", "chroma_db")
-
 
 def get_client():
     """
-    Create a persistent Chroma client.
+    Create an in-memory Chroma client (no persistence) for Render.
     """
-    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    client = chromadb.Client()
     return client
-
 
 def create_or_get_collection(name="docs"):
     """
-    Retrieve an existing collection or create a new one.
-    If OPENAI_KEY is set, use OpenAI embeddings.
+    Always create a fresh collection on Render to avoid schema conflicts.
     """
     client = get_client()
     try:
-        col = client.get_collection(name)
+        # Delete if collection exists
+        existing = client.get_collection(name=name, include={"embeddings": False})
+        if existing:
+            client.delete_collection(name)
     except Exception:
-        if OPENAI_KEY:
-            from chromadb.utils import embedding_functions
-            ef = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=OPENAI_KEY,
-                model_name="text-embedding-3-small"
-            )
-            col = client.create_collection(name=name, embedding_function=ef)
-        else:
-            col = client.create_collection(name=name)
-    return col
+        pass
 
+    # Use OpenAI embeddings if key is present
+    if OPENAI_KEY:
+        ef = embedding_functions.OpenAIEmbeddingFunction(
+            api_key=OPENAI_KEY,
+            model_name="text-embedding-3-small"
+        )
+        col = client.create_collection(name=name, embedding_function=ef)
+    else:
+        col = client.create_collection(name=name)
+    return col
 
 def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: List[str], collection_name="docs"):
     """
@@ -45,15 +47,13 @@ def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: Lis
     col = create_or_get_collection(collection_name)
     try:
         col.add(documents=texts, metadatas=metadatas, ids=ids)
-        col.persist()
     except Exception as e:
         print("Chroma ingest failed:", e)
-
 
 def answer_query(query: str, collection_name="docs", top_k: int = 3):
     """
     Query the collection and return top_k results along with sources.
-    Falls back to Atlan's official documentation if no results found.
+    Fallback to Atlan docs if no results.
     """
     col = create_or_get_collection(collection_name)
     out = {"answer": "", "sources": []}
@@ -77,7 +77,7 @@ def answer_query(query: str, collection_name="docs", top_k: int = 3):
             out["sources"] = list(dict.fromkeys(sources))
         else:
             # Fallback to Atlan docs
-            if "api" in query.lower() or "sdk" in query.lower():
+            if any(k in query.lower() for k in ["api", "sdk"]):
                 out["answer"] = "You can find details in the Atlan Developer Hub."
                 out["sources"] = ["https://developer.atlan.com/"]
             else:
@@ -89,12 +89,9 @@ def answer_query(query: str, collection_name="docs", top_k: int = 3):
 
     return out
 
-
 if __name__ == "__main__":
-    # Quick local test
     docs = ["Short doc: how to add a column in Atlan UI."]
     metas = [{"source": "local-doc-example"}]
     ids = ["doc-1"]
-
     ingest_documents(docs, metas, ids)
     print(answer_query("how to add a column"))

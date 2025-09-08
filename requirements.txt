@@ -7,5 +7,4 @@ pytest==7.4.0
 python-dotenv==1.0.0
 tqdm==4.66.0
 urllib3==2.0.4
-duckdb==1.13.1
-pynndescent==0.5.9
+duckdb>=1.0.0        # Updated

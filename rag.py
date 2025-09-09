@@ -8,14 +8,12 @@ import chromadb
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 CHROMA_DIR = os.getenv("CHROMA_DB_DIR", "chroma_db")
 
-
 def get_client():
     """
     Create a persistent Chroma client.
     """
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     return client
-
 
 def create_or_get_collection(name="docs"):
     """
@@ -37,7 +35,6 @@ def create_or_get_collection(name="docs"):
             col = client.create_collection(name=name)
     return col
 
-
 def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: List[str], collection_name="docs"):
     """
     Add documents to a Chroma collection.
@@ -49,13 +46,12 @@ def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: Lis
     except Exception as e:
         print("Chroma ingest failed:", e)
 
-
 def answer_query(query: str, collection_name="docs", top_k: int = 3):
     """
-    Query the collection and return top_k results along with sources.
+    Query the collection and return top_k results along with the most relevant source.
     """
     col = create_or_get_collection(collection_name)
-    out = {"answer": "", "sources": []}
+    out = {"answer": "", "source": ""}
     try:
         res = col.query(query_texts=[query], n_results=top_k)
         docs = []
@@ -72,17 +68,33 @@ def answer_query(query: str, collection_name="docs", top_k: int = 3):
                     sources.append(m.get("source"))
 
         out["answer"] = "\n\n".join(docs[:top_k]) if docs else "No relevant docs found."
-        out["sources"] = list(dict.fromkeys(sources))
+        
+        # Pick a single relevant source link
+        if sources:
+            # Basic logic: pick link based on topic keyword in query
+            query_lower = query.lower()
+            if any(k in query_lower for k in ["api", "sdk", "programmatic", "rest"]):
+                for s in sources:
+                    if "developer" in s:
+                        out["source"] = s
+                        break
+            else:
+                for s in sources:
+                    if "docs" in s:
+                        out["source"] = s
+                        break
+            if not out["source"]:
+                out["source"] = sources[0]  # fallback
     except Exception as e:
         out["answer"] = f"Error during retrieval: {e}"
+        out["source"] = ""
 
     return out
-
 
 if __name__ == "__main__":
     # Quick local test
     docs = ["Short doc: how to add a column in Atlan UI."]
-    metas = [{"source": "local-doc-example"}]
+    metas = [{"source": "https://docs.atlan.com/"}]
     ids = ["doc-1"]
 
     ingest_documents(docs, metas, ids)

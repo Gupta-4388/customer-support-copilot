@@ -1,9 +1,11 @@
-streamlit==1.28.0
-openai==1.31.0
-chromadb==0.4.13
-requests==2.31.0
-beautifulsoup4==4.12.2
-pytest==7.4.0
-python-dotenv==1.0.0
-tqdm==4.66.0
-urllib3==2.0.4
+# requirements.txt
+streamlit
+openai
+chromadb
+duckdb
+requests
+beautifulsoup4
+pytest
+python-dotenv
+tqdm
+urllib3

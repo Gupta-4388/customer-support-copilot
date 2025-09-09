@@ -16,18 +16,20 @@ TOPIC_ANSWERS = {
     "SSO": "Refer to Atlan SSO setup guides for instructions."
 }
 
+# Topic-based sources (deterministic URLs)
+TOPIC_SOURCES = {
+    "Product": "https://docs.atlan.com/",
+    "API/SDK": "https://developer.atlan.com/",
+    "Best practices": "https://docs.atlan.com/best-practices/",
+    "How-to": "https://docs.atlan.com/",
+    "SSO": "https://docs.atlan.com/sso/"
+}
+
 def get_client():
-    """
-    Create a persistent Chroma client.
-    """
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     return client
 
 def create_or_get_collection(name="docs"):
-    """
-    Retrieve an existing collection or create a new one.
-    If OPENAI_KEY is set, use OpenAI embeddings.
-    """
     client = get_client()
     try:
         col = client.get_collection(name)
@@ -44,9 +46,6 @@ def create_or_get_collection(name="docs"):
     return col
 
 def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: List[str], collection_name="docs"):
-    """
-    Add documents to a Chroma collection.
-    """
     col = create_or_get_collection(collection_name)
     try:
         col.add(documents=texts, metadatas=metadatas, ids=ids)
@@ -55,23 +54,19 @@ def ingest_documents(texts: List[str], metadatas: List[Dict[str, str]], ids: Lis
         print("Chroma ingest failed:", e)
 
 def answer_query(query: str, collection_name="docs", top_k: int = 3):
-    """
-    Query the collection and return top_k results along with only the most relevant source.
-    """
     col = create_or_get_collection(collection_name)
-    out = {"answer": "", "source": None}  # single source
+    out = {"answer": "", "source": None}  # only one source
     try:
         res = col.query(query_texts=[query], n_results=top_k)
         docs = []
         source = None
 
-        # Gather top-k docs for answer (optional, mostly for fallback)
         for docs_for_query in res.get("documents", []):
             for d in docs_for_query:
                 if d:
                     docs.append(d)
 
-        # Pick only the first valid source
+        # Take the first available source
         for metas_for_query in res.get("metadatas", []):
             for m in metas_for_query:
                 if m and isinstance(m, dict) and m.get("source"):
@@ -80,7 +75,6 @@ def answer_query(query: str, collection_name="docs", top_k: int = 3):
             if source:
                 break
 
-        # Fallback answer if topic-based answer not used
         out["answer"] = "\n\n".join(docs[:top_k]) if docs else "No relevant docs found."
         out["source"] = source
 

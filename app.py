@@ -1,23 +1,22 @@
-# app.py
 import streamlit as st
 from ingest import load_sample_tickets
 from classify import classify_ticket
-from rag import answer_query
+from rag import answer_query, TOPIC_ANSWERS
 from dotenv import load_dotenv
 import os
 load_dotenv()
 
 st.set_page_config(page_title="Customer Support Copilot", layout="wide")
 st.title("Customer Support Copilot — intern prototype")
-st.markdown("Bulk classify tickets and try a small assistant view.")
 
+# === Load tickets ===
 @st.cache_data
 def load_tickets():
     return load_sample_tickets()
 
 tickets = load_tickets()
 
-# prepare table
+# === Bulk ticket table ===
 rows = []
 for t in tickets:
     text = t.get("body","")
@@ -49,7 +48,7 @@ with col1:
             analysis = classify_ticket(user_text)
             st.session_state["analysis"] = analysis
             st.session_state["last_text"] = user_text
-            st.success("Done")
+            st.success("Done")  # shows Done after button click
 
 with col2:
     st.write("Internal Analysis View")
@@ -58,19 +57,23 @@ with col2:
     else:
         st.info("Analyze a ticket to see the JSON classification.")
 
+# === Final Response ===
 st.markdown("### Final Response")
 if st.session_state.get("analysis"):
     topic = st.session_state["analysis"].get("topic")
     q = st.session_state.get("last_text","")
-    if topic in {"How-to", "Product", "Best practices", "API/SDK", "SSO"}:
+
+    if topic in TOPIC_ANSWERS:
         st.write("Answering using local KB (RAG). Cited URLs shown below.")
+        # Use topic-based answer if exists
+        answer_text = TOPIC_ANSWERS[topic]
         res = answer_query(q)
         st.markdown("**Answer (aggregated):**")
-        st.write(res.get("answer"))
-        st.markdown("**Cited sources:**")
-        for s in res.get("sources",[]):
-            st.write(s)
+        st.write(answer_text)
+        if res.get("source"):
+            st.markdown("**Cited source:**")
+            st.markdown(f"- {res['source']}")
     else:
         st.info(f"This ticket has been classified as '{topic}' and will be routed to the appropriate team.")
 
-st.caption("Set OPENAI_API_KEY in .env to enable LLM-based classification and embeddings. CHROMA_DB_DIR optional.")
+st.caption("Set OPENAI_API_KEY in .env to enable LLM-based classification and embeddings. CHROMA_DB_DIR optional")

@@ -1,7 +1,7 @@
 import streamlit as st
 from ingest import load_sample_tickets
 from classify import classify_ticket
-from rag import answer_query, TOPIC_ANSWERS
+from rag import answer_query, TOPIC_ANSWERS, TOPIC_SOURCES
 from dotenv import load_dotenv
 import os
 load_dotenv()
@@ -48,7 +48,7 @@ with col1:
             analysis = classify_ticket(user_text)
             st.session_state["analysis"] = analysis
             st.session_state["last_text"] = user_text
-            st.success("Done")  # shows Done after button click
+            st.success("Done")
 
 with col2:
     st.write("Internal Analysis View")
@@ -65,14 +65,13 @@ if st.session_state.get("analysis"):
 
     if topic in TOPIC_ANSWERS:
         st.write("Answering using local KB (RAG). Cited URLs shown below.")
-        # Use topic-based answer if exists
         answer_text = TOPIC_ANSWERS[topic]
         res = answer_query(q)
         st.markdown("**Answer (aggregated):**")
         st.write(answer_text)
-        if res.get("source"):
+        if topic in TOPIC_SOURCES:
             st.markdown("**Cited source:**")
-            st.markdown(f"- {res['source']}")
+            st.markdown(f"- {TOPIC_SOURCES[topic]}")
     else:
         st.info(f"This ticket has been classified as '{topic}' and will be routed to the appropriate team.")
 
